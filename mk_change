@@ -1,0 +1,31 @@
+#!/bin/bash
+
+mkchange_dir=./mk_change_files
+board_name=$1
+cmd=$2
+
+[ -z "$board_name" ] && echo "ERROR: board_name is null, exit" && exit 0
+
+[ -d ${mkchange_dir}/$board_name ] && {
+
+	case $cmd in
+		*checkout)
+			echo "run: $mkchange_dir/${board_name}/checkout/checkout.sh"
+			$mkchange_dir/${board_name}/checkout/checkout.sh
+		;;
+		*)
+			echo "run: cp -f .config_${board_name} .config"
+			cp -f .config_${board_name} .config
+
+			[ -f "$mkchange_dir/${board_name}/config.sh" ] && {
+				chmod +x $mkchange_dir/${board_name}/config.sh
+				echo "run: $mkchange_dir/${board_name}/config.sh"
+				$mkchange_dir/${board_name}/config.sh
+			}
+
+			echo "run: cp -rf ${mkchange_dir}/${board_name}/files/* ./"
+			cp -rf ${mkchange_dir}/${board_name}/files/* ./
+		;;
+	esac
+}
+

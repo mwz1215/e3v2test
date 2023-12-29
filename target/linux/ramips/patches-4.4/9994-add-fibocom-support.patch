@@ -1,0 +1,92 @@
+--- a/drivers/usb/serial/option.c
++++ b/drivers/usb/serial/option.c
+@@ -546,6 +546,17 @@ static void option_instat_callback(struc
+ #define INOVIA_VENDOR_ID			0x20a6
+ #define INOVIA_SEW858				0x1105
+ 
++/* Fibocom products */
++#define FIBOCOM_VENDOR_ID          0x2cb7
++#define FIBOCOM_PRODUCT_L71X       0x0001
++#define FIBOCOM_USB_VENDOR_AND_INTERFACE_INFO(vend, cl, sc, pr) \
++	.match_flags = USB_DEVICE_ID_MATCH_INT_INFO \
++	| USB_DEVICE_ID_MATCH_VENDOR, \
++	.idVendor = (vend), \
++	.bInterfaceClass = (cl), \
++	.bInterfaceSubClass = (sc), \
++	.bInterfaceProtocol = (pr)
++
+ /* VIA Telecom */
+ #define VIATELECOM_VENDOR_ID			0x15eb
+ #define VIATELECOM_PRODUCT_CDS7			0x0001
+@@ -1770,6 +1781,12 @@ static const struct usb_device_id option
+ 	{ USB_VENDOR_AND_INTERFACE_INFO(ZTE_VENDOR_ID, 0xff, 0x02, 0x05) },
+ 	{ USB_VENDOR_AND_INTERFACE_INFO(ZTE_VENDOR_ID, 0xff, 0x86, 0x10) },
+ 
++	//FIBOCOM
++	{ FIBOCOM_USB_VENDOR_AND_INTERFACE_INFO(FIBOCOM_VENDOR_ID, 0xff, 0xff, 0xff) },
++	{ FIBOCOM_USB_VENDOR_AND_INTERFACE_INFO(FIBOCOM_VENDOR_ID, 0x0a, 0x00, 0xff) },
++	{ USB_DEVICE_AND_INTERFACE_INFO(0x19d2, 0x0256, 0xff, 0xff, 0xff) },
++	{ USB_DEVICE_AND_INTERFACE_INFO(0x19d2, 0x0579, 0xff, 0xff, 0xff) },
++
+ 	{ USB_DEVICE(BENQ_VENDOR_ID, BENQ_PRODUCT_H10) },
+ 	{ USB_DEVICE(DLINK_VENDOR_ID, DLINK_PRODUCT_DWM_652) },
+ 	{ USB_DEVICE(ALINK_VENDOR_ID, DLINK_PRODUCT_DWM_652_U5) }, /* Yes, ALINK_VENDOR_ID */
+@@ -2064,6 +2081,17 @@ static int option_probe(struct usb_seria
+ 	    iface_desc->bInterfaceClass != USB_CLASS_CDC_DATA)
+ 		return -ENODEV;
+ 
++	//fibocom
++	if (serial->dev->descriptor.idVendor == FIBOCOM_VENDOR_ID &&
++			serial->dev->descriptor.idProduct == FIBOCOM_PRODUCT_L71X &&
++			serial->interface->cur_altsetting->desc.bInterfaceClass == 0x7)
++		return -ENODEV;
++
++	if (serial->dev->descriptor.idVendor == ZTE_VENDOR_ID &&
++			serial->dev->descriptor.idProduct == 0x0579 &&
++			serial->interface->cur_altsetting->desc.bInterfaceClass == 0x6)
++		return -ENODEV;
++
+ 	/* Store the device flags so we can use them during attach. */
+ 	usb_set_serial_data(serial, (void *)device_flags);
+ 
+--- a/drivers/usb/serial/usb_wwan.c
++++ b/drivers/usb/serial/usb_wwan.c
+@@ -35,6 +35,9 @@
+ #include <linux/usb/serial.h>
+ #include <linux/serial.h>
+ #include "usb-wwan.h"
++//Fibocom
++#define FIBOCOM_BCDUSB         0x0100
++#define FIBOCOM_VENDOR_ID      0x2cb7
+ 
+ /*
+  * Generate DTR/RTS signals on the port using the SET_CONTROL_LINE_STATE request
+@@ -222,6 +225,9 @@ int usb_wwan_write(struct tty_struct *tt
+ 	struct urb *this_urb = NULL;	/* spurious */
+ 	int err;
+ 	unsigned long flags;
++	//fibocom
++	struct usb_host_endpoint *ep;
++
+ 
+ 	portdata = usb_get_serial_port_data(port);
+ 	intfdata = usb_get_serial_data(port->serial);
+@@ -256,6 +262,18 @@ int usb_wwan_write(struct tty_struct *tt
+ 		memcpy(this_urb->transfer_buffer, buf, todo);
+ 		this_urb->transfer_buffer_length = todo;
+ 
++		//fibocom
++
++		if((FIBOCOM_VENDOR_ID == port->serial->dev->descriptor.idVendor) &&
++				(FIBOCOM_BCDUSB != port->serial->dev->descriptor.bcdUSB)) {
++			ep = usb_pipe_endpoint(this_urb->dev, this_urb->pipe);
++			if (ep && (0 != this_urb->transfer_buffer_length) &&
++					(0 == this_urb->transfer_buffer_length % ep->desc.wMaxPacketSize)) {
++				this_urb->transfer_flags |= URB_ZERO_PACKET;
++				printk("GHT: Send ZERO PACKET ####\r\n");
++			}
++		}
++
+ 		spin_lock_irqsave(&intfdata->susp_lock, flags);
+ 		if (intfdata->suspended) {
+ 			usb_anchor_urb(this_urb, &portdata->delayed);

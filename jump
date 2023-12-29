@@ -1,0 +1,15 @@
+#! /bin/bash
+TFTP="/mnt/hgfs/share/firmware/tftp/firmware_auto.bin"
+BIN="./bin/targets/ramips/mt7628/lede-ramips-mt7628-cf-e3v2-squashfs-sysupgrade.bin"
+if [ -f "$BIN" ];then
+	echo "------->$BIN is exist"
+	rm "$TFTP"
+	cp "$BIN" "$TFTP"
+	if [ -f "$TFTP" ];then
+		echo "----->cp to $TFTP is successfull!"
+	else
+		echo "---->cp is errer!"
+	fi
+else
+	echo "-----> $BIN is not exist"
+fi
